@@ -1,8 +1,6 @@
 package envoy_controller
 
 import (
-	"time"
-
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2"
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/endpoint"
@@ -35,21 +33,6 @@ func (e *EnvoyController) DeleteEndpoints(key string) error {
 	e.inventory.SetVersion()
 	delete(e.inventory.Clusters, key)
 	return e.config.SetSnapshot(e.inventory.Node, e.inventory.Snapshot())
-}
-
-func makeCluster(key string) *v2.Cluster {
-	var cluster v2.Cluster
-	cluster.Name = key
-	cluster.ConnectTimeout = time.Second * 5
-	cluster.Type = v2.Cluster_EDS
-	cluster.EdsClusterConfig = &v2.Cluster_EdsClusterConfig{
-		EdsConfig: &core.ConfigSource{
-			ConfigSourceSpecifier: &core.ConfigSource_Ads{
-				Ads: &core.AggregatedConfigSource{},
-			},
-		},
-	}
-	return &cluster
 }
 
 func makeClusterLoadAssignment(key string) *v2.ClusterLoadAssignment {

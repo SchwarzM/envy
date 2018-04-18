@@ -1,6 +1,9 @@
 package envoy_controller
 
 import (
+	"strconv"
+	"time"
+
 	ev2 "github.com/envoyproxy/go-control-plane/envoy/api/v2"
 	"github.com/envoyproxy/go-control-plane/envoy/api/v2/core"
 	elis "github.com/envoyproxy/go-control-plane/envoy/api/v2/listener"
@@ -8,6 +11,8 @@ import (
 	"github.com/envoyproxy/go-control-plane/pkg/util"
 	"github.com/golang/glog"
 	"k8s.io/api/core/v1"
+
+	"github.com/schwarzm/envy/pkg/global"
 )
 
 func (e *EnvoyController) AddOrUpdateService(service *v1.Service, key string) error {
@@ -17,7 +22,16 @@ func (e *EnvoyController) AddOrUpdateService(service *v1.Service, key string) er
 	e.inventory.SetVersion()
 	cluster := makeCluster(key)
 	e.inventory.Clusters[key] = cluster
-	e.inventory.Listeners[key], _ = makeTCPListener(service, key)
+	ip := service.GetLabels()[global.ServiceLabel]
+	listeners := make([]*ev2.Listener, 0)
+	for _, port := range service.Spec.Ports {
+		if port.Protocol == v1.ProtocolTCP {
+			listeners = append(listeners, makeTCPListener(ip, port.Port, key+strconv.FormatInt(int64(port.Port), 10)))
+		} else {
+			glog.Infof("Ignoring service %v, port: %d due to UDP", key, port.Port)
+		}
+	}
+	e.inventory.Listeners[key] = listeners
 	return e.config.SetSnapshot(e.inventory.Node, e.inventory.Snapshot())
 }
 
@@ -27,22 +41,31 @@ func (e *EnvoyController) DeleteService(key string) error {
 	defer e.inventory.Mutex.Unlock()
 	e.inventory.SetVersion()
 	delete(e.inventory.Listeners, key)
+	delete(e.inventory.Clusters, key)
 	return e.config.SetSnapshot(e.inventory.Node, e.inventory.Snapshot())
 }
 
-func makeTCPListener(service *v1.Service, key string) (*ev2.Listener, error) {
-	//TODO: use real servicelabel here, cyclic dep ?
-	ip := service.GetLabels()["schwarzm/envy"]
-	//TODO: more than 1 port?
-	port := service.Spec.Ports[0].Port
+func makeCluster(key string) *ev2.Cluster {
+	var cluster ev2.Cluster
+	cluster.Name = key
+	cluster.ConnectTimeout = time.Second * 5
+	cluster.Type = ev2.Cluster_EDS
+	cluster.EdsClusterConfig = &ev2.Cluster_EdsClusterConfig{
+		EdsConfig: &core.ConfigSource{
+			ConfigSourceSpecifier: &core.ConfigSource_Ads{
+				Ads: &core.AggregatedConfigSource{},
+			},
+		},
+	}
+	return &cluster
+}
+
+func makeTCPListener(ip string, port int32, key string) *ev2.Listener {
 	config := &tcp.TcpProxy{
 		StatPrefix: key,
 		Cluster:    key,
 	}
-	pbst, err := util.MessageToStruct(config)
-	if err != nil {
-		return nil, err
-	}
+	pbst, _ := util.MessageToStruct(config)
 	listener := &ev2.Listener{
 		Name: key,
 		Address: core.Address{
@@ -67,5 +90,5 @@ func makeTCPListener(service *v1.Service, key string) (*ev2.Listener, error) {
 			},
 		},
 	}
-	return listener, nil
+	return listener
 }

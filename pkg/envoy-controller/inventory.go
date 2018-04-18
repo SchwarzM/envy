@@ -14,7 +14,7 @@ const NodeName = "node"
 type Inventory struct {
 	Mutex     sync.Mutex
 	Version   string
-	Listeners map[string]*ev2.Listener
+	Listeners map[string][]*ev2.Listener
 	Clas      map[string]*ev2.ClusterLoadAssignment
 	Clusters  map[string]*ev2.Cluster
 	Node      string
@@ -23,7 +23,7 @@ type Inventory struct {
 func NewInventory() *Inventory {
 	return &Inventory{
 		Version:   "",
-		Listeners: make(map[string]*ev2.Listener),
+		Listeners: make(map[string][]*ev2.Listener),
 		Clas:      make(map[string]*ev2.ClusterLoadAssignment),
 		Clusters:  make(map[string]*ev2.Cluster),
 		Node:      NodeName,
@@ -37,14 +37,14 @@ func (i *Inventory) SetVersion() {
 }
 
 func (i *Inventory) Snapshot() cache.Snapshot {
-	listeners := make([]cache.Resource, len(i.Listeners))
-	count := 0
+	listeners := make([]cache.Resource, 0)
 	for _, listener := range i.Listeners {
-		listeners[count] = listener
-		count = count + 1
+		for _, port := range listener {
+			listeners = append(listeners, port)
+		}
 	}
 	clusters := make([]cache.Resource, len(i.Clusters))
-	count = 0
+	count := 0
 	for _, cluster := range i.Clusters {
 		clusters[count] = cluster
 		count = count + 1
