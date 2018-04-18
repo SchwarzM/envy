@@ -1,0 +1,30 @@
+node:
+  id: node
+  cluster: cluster
+
+admin:
+  access_log_path: /tmp/admin_access.log
+  address:
+    socket_address: 
+      address: 0.0.0.0
+      port_value: 9901
+
+dynamic_resources:
+  lds_config: { ads: {}}
+  cds_config: { ads: {}}
+  ads_config:
+    api_type: GRPC
+    cluster_names:
+    - xds_cluster
+  
+static_resources:
+  clusters:
+  - name: xds_cluster
+    connect_timeout: 1s
+    type: STRICT_DNS
+    lb_policy: ROUND_ROBIN
+    http2_protocol_options: {}
+    hosts:
+    - socket_address:
+        address: host.docker.internal
+        port_value: 18000
