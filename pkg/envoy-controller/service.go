@@ -26,7 +26,7 @@ func (e *EnvoyController) AddOrUpdateService(service *v1.Service, key string) er
 	listeners := make([]*ev2.Listener, 0)
 	for _, port := range service.Spec.Ports {
 		if port.Protocol == v1.ProtocolTCP {
-			listeners = append(listeners, makeTCPListener(ip, port.Port, key+strconv.FormatInt(int64(port.Port), 10)))
+			listeners = append(listeners, makeTCPListener(ip, port.Port, key))
 		} else {
 			glog.Infof("Ignoring service %v, port: %d due to UDP", key, port.Port)
 		}
@@ -67,7 +67,7 @@ func makeTCPListener(ip string, port int32, key string) *ev2.Listener {
 	}
 	pbst, _ := util.MessageToStruct(config)
 	listener := &ev2.Listener{
-		Name: key,
+		Name: key + strconv.FormatInt(int64(port), 10),
 		Address: core.Address{
 			Address: &core.Address_SocketAddress{
 				SocketAddress: &core.SocketAddress{
